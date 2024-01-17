@@ -89,10 +89,14 @@ Environment Configuration Settings
 - **AZURE_CLIENT_SECRET**: (optional) Client secret of the Service Principal
 - **AZURE_TENANT_ID**: (optional) Tenant ID of the Service Principal
 - **CALLBACK_SCRIPT**: the callback script to run on various cluster actions (on start, on stop, on restart, on role change). The script will receive the cluster name, connection string and the current action. See `Patroni <http://patroni.readthedocs.io/en/latest/SETTINGS.html?highlight=callback#postgresql>`__ documentation for details.
-- **LOG_S3_BUCKET**: path to the S3 bucket used for PostgreSQL daily log files (i.e. s3://foobar). Spilo will add /spilo/scope/pg_daily_logs to that path. Logs are shipped if this variable is set.
+- **LOG_S3_BUCKET**: path to the S3 bucket used for PostgreSQL daily log files (i.e. foobar, without `s3://` prefix). Spilo will add `/spilo/{LOG_BUCKET_SCOPE_PREFIX}{SCOPE}{LOG_BUCKET_SCOPE_SUFFIX}/log/` to that path. Logs are shipped if this variable is set.
 - **LOG_SHIP_SCHEDULE**: cron schedule for shipping compressed logs from ``pg_log`` (if this feature is enabled, '00 02 * * *' by default)
 - **LOG_ENV_DIR**: directory to store environment variables necessary for log shipping
 - **LOG_TMPDIR**: directory to store temporary compressed daily log files. PGROOT/../tmp by default.
+- **LOG_S3_ENDPOINT**: (optional) S3 Endpoint to use with Boto3
+- **LOG_BUCKET_SCOPE_PREFIX**: (optional) using to build S3 file path like `/spilo/{LOG_BUCKET_SCOPE_PREFIX}{SCOPE}{LOG_BUCKET_SCOPE_SUFFIX}/log/`
+- **LOG_BUCKET_SCOPE_SUFFIX**: (optional) same as above
+- **LOG_GROUP_BY_DATE**: (optional) enable grouping log by date. Default is False - group the log files based on the instance ID.
 - **DCS_ENABLE_KUBERNETES_API**: a non-empty value forces Patroni to use Kubernetes as a DCS. Default is empty.
 - **KUBERNETES_USE_CONFIGMAPS**: a non-empty value makes Patroni store its metadata in ConfigMaps instead of Endpoints when running on Kubernetes. Default is empty.
 - **KUBERNETES_ROLE_LABEL**: name of the label containing Postgres role when running on Kubernetens. Default is 'spilo-role'.
@@ -101,6 +105,7 @@ Environment Configuration Settings
 - **INITDB_LOCALE**: database cluster's default UTF-8 locale (en_US by default)
 - **ENABLE_WAL_PATH_COMPAT**: old Spilo images were generating wal path in the backup store using the following template ``/spilo/{WAL_BUCKET_SCOPE_PREFIX}{SCOPE}{WAL_BUCKET_SCOPE_SUFFIX}/wal/``, while new images adding one additional directory (``{PGVERSION}``) to the end. In order to avoid (unlikely) issues with restoring WALs (from S3/GC/and so on) when switching to ``spilo-13`` please set the ``ENABLE_WAL_PATH_COMPAT=true`` when deploying old cluster with ``spilo-13`` for the first time. After that the environment variable could be removed. Change of the WAL path also mean that backups stored in the old location will not be cleaned up automatically.
 - **WALE_DISABLE_S3_SSE**, **WALG_DISABLE_S3_SSE**: by default wal-e/wal-g are configured to encrypt files uploaded to S3. In order to disable it you can set this environment variable to ``true``.
+- **USE_OLD_LOCALES**: whether to use old locales from Ubuntu 18.04 in the Ubuntu 22.04-based image. Default is false.
 
 wal-g
 -----
@@ -116,7 +121,7 @@ In case of S3, `wal-e` is used for backups and `wal-g` for restore.
 - **WALG_SSH_PREFIX**: (optional) the ssh prefix to store WAL backups at in the format ssh://host.example.com/path/to/backups/ See `Wal-g <https://github.com/wal-g/wal-g#configuration>`__ documentation for details.
 - **WALG_LIBSODIUM_KEY**, **WALG_LIBSODIUM_KEY_PATH**, **WALG_LIBSODIUM_KEY_TRANSFORM**, **WALG_PGP_KEY**, **WALG_PGP_KEY_PATH**, **WALG_PGP_KEY_PASSPHRASE** (optional) wal-g encryption properties (see [wal-g encryption](https://github.com/wal-g/wal-g#encryption))
 - **http_proxy**, **https_proxy**, **no_proxy** (optional) HTTP(S) proxy configuration for `wal-g` to access S3. While http_proxy and https_proxy take a proxy URL, no_proxy takes a comma separated list of exceptions. Both are following a de-facto standard, see the [`wget`](https://www.gnu.org/software/wget/manual/html_node/Proxies.html) documentation.
-- **AWS_ROLE_ARN**, **AWS_WEB_IDENTITY_TOKEN_FILE** (optional) `AWS EKS IRSA <https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html>`__ auth configuration for `wal-g` to access S3. Usually these variables are automatically set by the AWS EKS. Only `wal-g` supports AWS EKS IRSA feature.
+- **AWS_ROLE_ARN**, **AWS_WEB_IDENTITY_TOKEN_FILE**, **AWS_STS_REGIONAL_ENDPOINTS** (optional) `AWS EKS IRSA <https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html>`__ auth configuration for `wal-g` to access S3. Usually these variables are automatically set by the AWS EKS. Only `wal-g` supports AWS EKS IRSA feature.
 
 Azure Specific WAL-G Configuration
 `````

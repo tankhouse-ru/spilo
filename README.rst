@@ -16,6 +16,11 @@ How to Use This Docker Image
 
 Spilo's setup assumes that you've correctly configured a load balancer (HAProxy, ELB, Google load balancer) that directs client connections to the master. There are two ways to achieve this: A) if the load balancer relies on the status code to distinguish between the healthy and failed nodes (like ELB), then one needs to configure it to poll the API URL; otherwise, B) you can use callback scripts to change the load balancer configuration dynamically.
 
+**Available container registry and image architectures**
+
+Spilo images are made available in the GitHub container registry (ghcr.io). Images are build and published as linux/amd64 and linux/arm64 on tag. For PostgreSQL version 14 currently availble images can be found here: https://github.com/zalando/spilo/pkgs/container/spilo-14
+
+
 How to Build This Docker Image
 ==============================
 
@@ -31,6 +36,7 @@ There are a few build arguments defined in the Dockerfile and it is possible to 
 - PGOLDVERSIONS="9.5 9.6 10 11"
 - DEMO=false # set to true to build the smallest possible image which will work only on Kubernetes
 - TIMESCALEDB_APACHE_ONLY=true # set to false to build timescaledb community version (Timescale License)
+- TIMESCALEDB_TOOLKIT=true # set to false to skip installing toolkit with timescaledb community edition. Only relevant when TIMESCALEDB_APACHE_ONLY=false
 - ADDITIONAL_LOCALES= # additional UTF-8 locales to build into image (example: "de_DE pl_PL fr_FR")
 
 Run the image locally after build:

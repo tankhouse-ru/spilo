@@ -579,8 +579,10 @@ def get_placeholders(provider):
     placeholders.setdefault('CLONE_TARGET_TIME', '')
     placeholders.setdefault('CLONE_TARGET_INCLUSIVE', True)
 
+    placeholders.setdefault('LOG_GROUP_BY_DATE', False)
     placeholders.setdefault('LOG_SHIP_SCHEDULE', '1 0 * * *')
     placeholders.setdefault('LOG_S3_BUCKET', '')
+    placeholders.setdefault('LOG_S3_ENDPOINT', '')
     placeholders.setdefault('LOG_TMPDIR', os.path.abspath(os.path.join(placeholders['PGROOT'], '../tmp')))
     placeholders.setdefault('LOG_BUCKET_SCOPE_SUFFIX', '')
 
@@ -727,7 +729,9 @@ def get_dcs_config(config, placeholders):
         config['kubernetes']['labels'] = kubernetes_labels
 
         if not config['kubernetes'].pop('use_configmaps'):
-            config['kubernetes'].update({'use_endpoints': True, 'ports': [{'port': 5432, 'name': 'postgresql'}]})
+            config['kubernetes'].update({'use_endpoints': True,
+                                         'pod_ip': placeholders['instance_data']['ip'],
+                                         'ports': [{'port': 5432, 'name': 'postgresql'}]})
         if str(config['kubernetes'].pop('bypass_api_service', None)).lower() == 'true':
             config['kubernetes']['bypass_api_service'] = True
     else:
@@ -751,9 +755,12 @@ def write_log_environment(placeholders):
     aws_region = log_env.get('AWS_REGION')
     if not aws_region:
         aws_region = placeholders['instance_data']['zone'][:-1]
-    log_env['LOG_AWS_HOST'] = 's3.{}.amazonaws.com'.format(aws_region)
+
+    log_env['LOG_AWS_REGION'] = aws_region
 
     log_s3_key = 'spilo/{LOG_BUCKET_SCOPE_PREFIX}{SCOPE}{LOG_BUCKET_SCOPE_SUFFIX}/log/'.format(**log_env)
+    if os.getenv('LOG_GROUP_BY_DATE'):
+        log_s3_key += '{DATE}/'
     log_s3_key += placeholders['instance_data']['id']
     log_env['LOG_S3_KEY'] = log_s3_key
 
@@ -764,7 +771,7 @@ def write_log_environment(placeholders):
     if not os.path.exists(log_env['LOG_ENV_DIR']):
         os.makedirs(log_env['LOG_ENV_DIR'])
 
-    for var in ('LOG_TMPDIR', 'LOG_AWS_HOST', 'LOG_S3_KEY', 'LOG_S3_BUCKET', 'PGLOG'):
+    for var in ('LOG_TMPDIR', 'LOG_AWS_REGION', 'LOG_S3_ENDPOINT', 'LOG_S3_KEY', 'LOG_S3_BUCKET', 'PGLOG'):
         write_file(log_env[var], os.path.join(log_env['LOG_ENV_DIR'], var), True)
 
 
@@ -772,7 +779,7 @@ def write_wale_environment(placeholders, prefix, overwrite):
     s3_names = ['WALE_S3_PREFIX', 'WALG_S3_PREFIX', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY',
                 'WALE_S3_ENDPOINT', 'AWS_ENDPOINT', 'AWS_REGION', 'AWS_INSTANCE_PROFILE', 'WALE_DISABLE_S3_SSE',
                 'WALG_S3_SSE_KMS_ID', 'WALG_S3_SSE', 'WALG_DISABLE_S3_SSE', 'AWS_S3_FORCE_PATH_STYLE', 'AWS_ROLE_ARN',
-                'AWS_WEB_IDENTITY_TOKEN_FILE']
+                'AWS_WEB_IDENTITY_TOKEN_FILE', 'AWS_STS_REGIONAL_ENDPOINTS']
     azure_names = ['WALG_AZ_PREFIX', 'AZURE_STORAGE_ACCOUNT',  'WALG_AZURE_BUFFER_SIZE', 'WALG_AZURE_MAX_BUFFERS',
                    'AZURE_ENVIRONMENT_NAME']
     azure_auth_names = ['AZURE_STORAGE_ACCESS_KEY', 'AZURE_STORAGE_SAS_TOKEN', 'AZURE_CLIENT_ID',
@@ -997,7 +1004,7 @@ def write_crontab(placeholders, overwrite):
         lines += [('{LOG_SHIP_SCHEDULE} nice -n 5 envdir "{LOG_ENV_DIR}"' +
                    ' /scripts/upload_pg_log_to_s3.py').format(**placeholders)]
 
-    lines += yaml.load(placeholders['CRONTAB'])
+    lines += yaml.safe_load(placeholders['CRONTAB'])
 
     if len(lines) > 1 or root_lines:
         setup_runit_cron(placeholders)
@@ -1053,10 +1060,11 @@ def main():
     placeholders = get_placeholders(provider)
     logging.info('Looks like you are running %s', provider)
 
-    config = yaml.load(pystache_render(TEMPLATE, placeholders))
+    config = yaml.safe_load(pystache_render(TEMPLATE, placeholders))
     config.update(get_dcs_config(config, placeholders))
 
-    user_config = yaml.load(os.environ.get('SPILO_CONFIGURATION', os.environ.get('PATRONI_CONFIGURATION', ''))) or {}
+    user_config = yaml.safe_load(os.environ.get('SPILO_CONFIGURATION',
+                                                os.environ.get('PATRONI_CONFIGURATION', ''))) or {}
     if not isinstance(user_config, dict):
         config_var_name = 'SPILO_CONFIGURATION' if 'SPILO_CONFIGURATION' in os.environ else 'PATRONI_CONFIGURATION'
         raise ValueError('{0} should contain a dict, yet it is a {1}'.format(config_var_name, type(user_config)))
