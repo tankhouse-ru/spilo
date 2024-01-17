@@ -128,6 +128,7 @@ for version in $DEB_PG_SUPPORTED_VERSIONS; do
         "postgresql-plpython3-${version}" \
         "postgresql-server-dev-${version}" \
         "postgresql-${version}-pgq3" \
+        "postgresql-${version}-rum" \
         "postgresql-${version}-pg-stat-kcache" \
         "${EXTRAS[@]}"
 
